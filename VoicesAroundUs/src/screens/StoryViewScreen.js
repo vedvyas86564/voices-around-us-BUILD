@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, Switch, ActivityIndicator, Alert,
+  StyleSheet, ScrollView, Switch, ActivityIndicator, Alert, Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Audio } from 'expo-av';
 import { colors, fonts, TAG_COLORS } from '../theme';
 import { TagPill } from '../components/TagPill';
 import { useAuth } from '../hooks/useAuth';
@@ -17,9 +19,17 @@ function timeAgo(ts) {
   return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+function formatDuration(ms) {
+  const totalSeconds = Math.max(0, Math.floor((ms || 0) / 1000));
+  const min = Math.floor(totalSeconds / 60);
+  const sec = totalSeconds % 60;
+  return `${min}:${String(sec).padStart(2, '0')}`;
+}
+
 export default function StoryViewScreen({ route, navigation }) {
   const { storyId } = route.params;
   const { user, profile } = useAuth();
+  const insets = useSafeAreaInsets();
   const [story, setStory] = useState(null);
   const [replies, setReplies] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,10 +38,73 @@ export default function StoryViewScreen({ route, navigation }) {
   const [replyText, setReplyText] = useState('');
   const [replyAnon, setReplyAnon] = useState(true);
   const [replySubmitting, setReplySubmitting] = useState(false);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [audioBusy, setAudioBusy] = useState(false);
+  const [audioDurationMs, setAudioDurationMs] = useState(0);
+  const [audioPositionMs, setAudioPositionMs] = useState(0);
+  const soundRef = useRef(null);
 
   useEffect(() => {
     loadData();
+    return () => {
+      unloadAudio();
+    };
   }, [storyId]);
+
+  function onPlaybackStatusUpdate(status) {
+    if (!status.isLoaded) return;
+    setIsPlayingAudio(status.isPlaying);
+    setAudioDurationMs(status.durationMillis || 0);
+    setAudioPositionMs(status.positionMillis || 0);
+    if (status.didJustFinish) {
+      setIsPlayingAudio(false);
+      setAudioPositionMs(0);
+    }
+  }
+
+  async function unloadAudio() {
+    if (!soundRef.current) return;
+    try {
+      soundRef.current.setOnPlaybackStatusUpdate(null);
+      await soundRef.current.unloadAsync();
+    } catch {
+      // Ignore unload errors when leaving screen quickly.
+    }
+    soundRef.current = null;
+  }
+
+  async function handleAudioPlayback() {
+    if (!story?.audio_url || audioBusy) return;
+
+    try {
+      setAudioBusy(true);
+      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+
+      if (!soundRef.current) {
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: story.audio_url },
+          { shouldPlay: true, progressUpdateIntervalMillis: 250 },
+          onPlaybackStatusUpdate
+        );
+        soundRef.current = sound;
+      } else {
+        const status = await soundRef.current.getStatusAsync();
+        if (!status.isLoaded) {
+          await unloadAudio();
+        } else if (status.isPlaying) {
+          await soundRef.current.pauseAsync();
+        } else if (status.didJustFinish) {
+          await soundRef.current.replayAsync();
+        } else {
+          await soundRef.current.playAsync();
+        }
+      }
+    } catch {
+      Alert.alert('Audio error', 'Could not play this voice memo.');
+    } finally {
+      setAudioBusy(false);
+    }
+  }
 
   async function loadData() {
     setLoading(true);
@@ -89,7 +162,7 @@ export default function StoryViewScreen({ route, navigation }) {
         keyboardShouldPersistTaps="handled"
       >
         {/* Hero */}
-        <View style={styles.hero}>
+        <View style={[styles.hero, { paddingTop: insets.top + 10 }]}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Text style={styles.backBtn}>← Back</Text>
           </TouchableOpacity>
@@ -121,12 +194,56 @@ export default function StoryViewScreen({ route, navigation }) {
             <Text style={styles.resonateInfo}>🫂 {resonateCount}</Text>
           </View>
 
-          {/* Story Text */}
-          <View style={styles.prose}>
-            {story.body.split('\n\n').map((p, i) => (
-              <Text key={i} style={styles.proseText}>{p}</Text>
-            ))}
-          </View>
+          {story.audio_url ? (
+            <View style={styles.audioWrap}>
+              <Text style={styles.audioLabel}>VOICE MEMO</Text>
+              <TouchableOpacity
+                style={[styles.audioPlayBtn, audioBusy && styles.audioPlayBtnDisabled]}
+                onPress={handleAudioPlayback}
+                disabled={audioBusy}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.audioPlayBtnText}>
+                  {audioBusy ? 'Loading…' : (isPlayingAudio ? '⏸ Pause audio' : '▶ Play audio')}
+                </Text>
+              </TouchableOpacity>
+              <Text style={styles.audioTime}>
+                {formatDuration(audioPositionMs)} / {formatDuration(audioDurationMs)}
+              </Text>
+              {story.transcription_status === 'done' && !!story.transcript_text?.trim() && (
+                <View style={styles.transcriptWrap}>
+                  <Text style={styles.transcriptLabel}>TRANSCRIPT</Text>
+                  <Text style={styles.transcriptText}>{story.transcript_text}</Text>
+                </View>
+              )}
+              {(story.transcription_status === 'pending' || story.transcription_status === 'processing') && (
+                <View style={styles.transcriptWrap}>
+                  <Text style={styles.transcriptLabel}>TRANSCRIPT</Text>
+                  <ActivityIndicator color={colors.amber} size="small" style={{ marginTop: 4 }} />
+                  <Text style={styles.transcriptPending}>Transcribing audio…</Text>
+                </View>
+              )}
+              {story.transcription_status === 'failed' && (
+                <View style={styles.transcriptWrap}>
+                  <Text style={styles.transcriptLabel}>TRANSCRIPT</Text>
+                  <Text style={styles.transcriptFailed}>Transcription unavailable</Text>
+                </View>
+              )}
+              {!!story.body?.trim() && (
+                <View style={styles.prose}>
+                  {story.body.split('\n\n').map((p, i) => (
+                    <Text key={i} style={styles.proseText}>{p}</Text>
+                  ))}
+                </View>
+              )}
+            </View>
+          ) : (
+            <View style={styles.prose}>
+              {story.body.split('\n\n').map((p, i) => (
+                <Text key={i} style={styles.proseText}>{p}</Text>
+              ))}
+            </View>
+          )}
 
           <View style={styles.divider} />
 
@@ -233,7 +350,6 @@ const styles = StyleSheet.create({
   },
   hero: {
     backgroundColor: colors.sand,
-    paddingTop: 14,
     paddingHorizontal: 24,
     paddingBottom: 26,
     borderBottomWidth: 1,
@@ -410,7 +526,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   replyInputWrap: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     borderWidth: 1.5,
     borderColor: colors.sandDark,
     borderRadius: 14,
@@ -464,5 +580,76 @@ const styles = StyleSheet.create({
   signInLink: {
     color: colors.amber,
     fontFamily: fonts.sansMedium,
+  },
+  audioWrap: {
+    marginBottom: 8,
+  },
+  audioLabel: {
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    color: colors.muted,
+    fontFamily: fonts.sansSemiBold,
+    marginBottom: 12,
+  },
+  audioPlayBtn: {
+    backgroundColor: colors.amber,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    marginBottom: 8,
+  },
+  audioPlayBtnDisabled: {
+    opacity: 0.6,
+  },
+  audioPlayBtnText: {
+    color: colors.white,
+    fontSize: 15,
+    fontFamily: fonts.sansSemiBold,
+  },
+  audioTime: {
+    fontSize: 12,
+    color: colors.muted,
+    fontFamily: fonts.sans,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  transcriptWrap: {
+    backgroundColor: colors.sand,
+    borderRadius: 14,
+    padding: 14,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.sandDark,
+  },
+  transcriptLabel: {
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    color: colors.muted,
+    fontFamily: fonts.sansSemiBold,
+    marginBottom: 8,
+  },
+  transcriptText: {
+    fontFamily: fonts.sans,
+    fontSize: 14,
+    lineHeight: 22,
+    color: colors.ink,
+  },
+  transcriptPending: {
+    fontSize: 13,
+    color: colors.muted,
+    fontFamily: fonts.sans,
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  transcriptFailed: {
+    fontSize: 13,
+    color: colors.muted,
+    fontFamily: fonts.sans,
+    fontStyle: 'italic',
   },
 });

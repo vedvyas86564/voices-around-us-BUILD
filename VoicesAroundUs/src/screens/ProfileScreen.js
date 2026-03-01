@@ -4,12 +4,14 @@ import {
   ScrollView, Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../theme';
 import { useAuth } from '../hooks/useAuth';
 import { getUserStories } from '../hooks/useStories';
 
 export default function ProfileScreen({ navigation }) {
   const { user, profile, signOut } = useAuth();
+  const insets = useSafeAreaInsets();
   const [myStories, setMyStories] = useState([]);
   const [stats, setStats] = useState({ stories: 0, resonates: 0, replies: 0 });
 
@@ -60,7 +62,7 @@ export default function ProfileScreen({ navigation }) {
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Hero */}
-        <View style={styles.hero}>
+        <View style={[styles.hero, { paddingTop: insets.top + 10 }]}>
           <View style={styles.avatarCircle}>
             <Text style={styles.avatarEmoji}>{emoji}</Text>
           </View>
@@ -124,7 +126,6 @@ const styles = StyleSheet.create({
   },
   hero: {
     backgroundColor: colors.sand,
-    paddingTop: 16,
     paddingHorizontal: 24,
     paddingBottom: 28,
     borderBottomWidth: 1,

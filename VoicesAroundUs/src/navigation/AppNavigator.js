@@ -24,7 +24,7 @@ function TabIcon({ icon, label, focused }) {
           {icon}
         </Text>
       </View>
-      <Text style={[styles.tabLabel, focused && styles.tabLabelOn]}>
+      <Text style={[styles.tabLabel, focused && styles.tabLabelOn]} numberOfLines={1}>
         {label}
       </Text>
     </View>
@@ -123,6 +123,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 3,
+    minWidth: 50,
     position: 'relative',
   },
   tabDot: {

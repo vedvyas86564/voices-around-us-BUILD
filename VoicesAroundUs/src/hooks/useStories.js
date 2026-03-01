@@ -53,19 +53,34 @@ export async function getStory(id) {
   return { data, error };
 }
 
-export async function submitStory({ authorId, title, body, locationName, lat, lng, tags, isAnonymous, emoji, authorName }) {
+export async function submitStory({
+  authorId,
+  title,
+  body,
+  locationName,
+  lat,
+  lng,
+  tags,
+  isAnonymous,
+  emoji,
+  authorName,
+  audioUrl,
+}) {
+  const latNum = Number(lat);
+  const lngNum = Number(lng);
   const { data, error } = await supabase.from('stories').insert({
     author_id: authorId,
     title,
     body,
     location_name: locationName,
-    lat,
-    lng,
+    lat: Number.isFinite(latNum) ? latNum : null,
+    lng: Number.isFinite(lngNum) ? lngNum : null,
     tags,
     is_anonymous: isAnonymous,
     emoji: emoji || '🌱',
     author_name: isAnonymous ? null : authorName,
-  });
+    audio_url: audioUrl || null,
+  }).select('id').single();
   return { data, error };
 }
 

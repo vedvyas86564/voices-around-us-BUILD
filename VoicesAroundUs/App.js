@@ -5,13 +5,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
 import {
-  Lora_400Regular,
-  Lora_500Medium,
-  Lora_600SemiBold,
-  Lora_400Regular_Italic,
-  Lora_500Medium_Italic,
-} from '@expo-google-fonts/lora';
-import {
   Outfit_300Light,
   Outfit_400Regular,
   Outfit_500Medium,
@@ -28,11 +21,6 @@ SplashScreen.preventAutoHideAsync();
 
 export default function App() {
   const [fontsLoaded] = useFonts({
-    Lora_400Regular,
-    Lora_500Medium,
-    Lora_600SemiBold,
-    Lora_400Regular_Italic,
-    Lora_500Medium_Italic,
     Outfit_300Light,
     Outfit_400Regular,
     Outfit_500Medium,

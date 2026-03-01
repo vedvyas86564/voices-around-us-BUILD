@@ -4,15 +4,19 @@ import {
   StyleSheet, ScrollView, Switch, Alert, Platform,
   KeyboardAvoidingView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { Audio } from 'expo-av';
 import { colors, fonts, TAGS } from '../theme';
 import { TagSelector } from '../components/TagPill';
 import { useAuth } from '../hooks/useAuth';
 import { submitStory } from '../hooks/useStories';
+import { supabase } from '../config/supabase';
+import LocationPicker from '../components/LocationPicker';
 
 export default function SubmitScreen({ navigation }) {
   const { user, profile } = useAuth();
+  const insets = useSafeAreaInsets();
   const [locationName, setLocationName] = useState('');
   const [storyText, setStoryText] = useState('');
   const [selectedTags, setSelectedTags] = useState([]);
@@ -22,6 +26,8 @@ export default function SubmitScreen({ navigation }) {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
   const [coords, setCoords] = useState(null);
+
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
 
   // Audio state
   const [recording, setRecording] = useState(null);
@@ -99,6 +105,10 @@ export default function SubmitScreen({ navigation }) {
       setError('Write at least 20 characters for your story.');
       return;
     }
+    if (storyType === 'audio' && !recordingUri) {
+      setError('Record a voice memo before sharing.');
+      return;
+    }
     if (!locationName) {
       setError('Add a location.');
       return;
@@ -107,12 +117,55 @@ export default function SubmitScreen({ navigation }) {
     setSubmitting(true);
     setError('');
 
-    const title = storyText.split(/[.!?]/)[0].trim().slice(0, 80) || 'A moment here';
+    const cleanedText = storyText.trim();
+    const titleFromText = cleanedText.split(/[.!?]/)[0].trim().slice(0, 80);
+    let audioUrl = null;
 
-    const { error: submitErr } = await submitStory({
+    if (storyType === 'audio' && recordingUri) {
+      try {
+        const fileName = `memo-${Date.now()}.m4a`;
+        const filePath = `${user.id}/${fileName}`;
+        const fileRes = await fetch(recordingUri);
+        const fileBuffer = await fileRes.arrayBuffer();
+
+        const { error: uploadErr } = await supabase.storage
+          .from('story-audio')
+          .upload(filePath, fileBuffer, {
+            contentType: 'audio/m4a',
+            upsert: false,
+          });
+
+        if (uploadErr) {
+          setSubmitting(false);
+          setError(uploadErr.message || 'Could not upload voice memo.');
+          return;
+        }
+
+        const { data: publicData } = supabase.storage
+          .from('story-audio')
+          .getPublicUrl(filePath);
+
+        audioUrl = publicData?.publicUrl || null;
+        if (!audioUrl) {
+          setSubmitting(false);
+          setError('Could not create an audio URL.');
+          return;
+        }
+      } catch {
+        setSubmitting(false);
+        setError('Could not upload voice memo.');
+        return;
+      }
+    }
+
+    const title = storyType === 'audio'
+      ? (titleFromText || `Voice memo from ${locationName.split(',')[0] || 'this place'}`)
+      : (titleFromText || 'A moment here');
+
+    const { data: insertedRow, error: submitErr } = await submitStory({
       authorId: user.id,
       title,
-      body: storyText,
+      body: cleanedText,
       locationName,
       lat: coords?.lat,
       lng: coords?.lng,
@@ -120,6 +173,7 @@ export default function SubmitScreen({ navigation }) {
       isAnonymous,
       emoji: profile?.emoji || '🌱',
       authorName: profile?.display_name || user.email?.split('@')[0],
+      audioUrl,
     });
 
     setSubmitting(false);
@@ -129,12 +183,19 @@ export default function SubmitScreen({ navigation }) {
       return;
     }
 
+    if (audioUrl && insertedRow?.id) {
+      supabase.functions.invoke('transcribe-story-audio', {
+        body: { storyId: insertedRow.id, audioUrl },
+      }).catch(() => {});
+    }
+
     setSubmitted(true);
     setTimeout(() => {
       setSubmitted(false);
       setStoryText('');
       setSelectedTags([]);
       setRecordingUri(null);
+      setRecordingDuration(0);
       navigation.goBack();
     }, 1400);
   }
@@ -144,7 +205,7 @@ export default function SubmitScreen({ navigation }) {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.backBtn}>← Cancel</Text>
         </TouchableOpacity>
@@ -167,16 +228,17 @@ export default function SubmitScreen({ navigation }) {
         {/* Location */}
         <View style={styles.group}>
           <Text style={styles.label}>LOCATION</Text>
-          <View style={styles.locBox}>
+          <TouchableOpacity
+            style={styles.locBox}
+            onPress={() => setShowLocationPicker(true)}
+            activeOpacity={0.7}
+          >
             <Text>📍</Text>
-            <TextInput
-              style={styles.locInput}
-              value={locationName}
-              onChangeText={setLocationName}
-              placeholder="Where is this story?"
-              placeholderTextColor="#C4BAB0"
-            />
-          </View>
+            <Text style={[styles.locInput, !locationName && { color: '#C4BAB0' }]}>
+              {locationName || 'Tap to choose location…'}
+            </Text>
+            <Text style={styles.locChange}>Change</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Story Type Toggle */}
@@ -306,6 +368,16 @@ export default function SubmitScreen({ navigation }) {
           </Text>
         </TouchableOpacity>
       </View>
+      <LocationPicker
+        visible={showLocationPicker}
+        onClose={() => setShowLocationPicker(false)}
+        initialCoords={coords ? { latitude: coords.lat, longitude: coords.lng } : null}
+        onConfirm={({ latitude, longitude, name }) => {
+          setCoords({ lat: latitude, lng: longitude });
+          setLocationName(name);
+          setShowLocationPicker(false);
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -316,7 +388,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.parchment,
   },
   header: {
-    paddingTop: 14,
     paddingHorizontal: 24,
     paddingBottom: 20,
     borderBottomWidth: 1,
@@ -387,6 +458,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.ink,
   },
+  locChange: {
+    fontSize: 13,
+    color: colors.amber,
+    fontFamily: fonts.sansSemiBold,
+  },
   typeToggle: {
     flexDirection: 'row',
     backgroundColor: colors.sand,
@@ -403,7 +479,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   typeOptOn: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.07,
