@@ -49,10 +49,6 @@
           "locationWhenInUsePermission": "We use your location to pin stories to your current place."
         }
       ],
-      [
-        "@rnmapbox/maps",
-        {}
-      ],
       "expo-font"
     ]
   }
