@@ -12,14 +12,17 @@ import {
   Outfit_700Bold,
 } from '@expo-google-fonts/outfit';
 import * as SplashScreen from 'expo-splash-screen';
+import { useEffect } from 'react';
 
 import { AuthProvider } from './src/hooks/useAuth';
 import AppNavigator from './src/navigation/AppNavigator';
 import { colors } from './src/theme';
 
-SplashScreen.preventAutoHideAsync();
-
 export default function App() {
+  useEffect(() => {
+    // Prevent the splash screen from auto-hiding until we explicitly hide it
+    SplashScreen.preventAutoHideAsync().catch(() => {});
+  }, []);
   const [fontsLoaded] = useFonts({
     Outfit_300Light,
     Outfit_400Regular,
@@ -28,9 +31,9 @@ export default function App() {
     Outfit_700Bold,
   });
 
-  const onLayoutRootView = useCallback(async () => {
+  useEffect(() => {
     if (fontsLoaded) {
-      await SplashScreen.hideAsync();
+      SplashScreen.hideAsync().catch(() => {});
     }
   }, [fontsLoaded]);
 
@@ -43,7 +46,7 @@ export default function App() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
           <StatusBar style="dark" />

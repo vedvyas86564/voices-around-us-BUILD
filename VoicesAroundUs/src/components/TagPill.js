@@ -28,12 +28,12 @@ export function TagSelector({ tag, selected, onPress }) {
   );
 }
 
-export function FilterChip({ label, active, onPress }) {
+export function FilterChip({ label, active, onPress, style }) {
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.7}
-      style={[styles.chip, active && styles.chipOn]}
+      style={[styles.chip, active && styles.chipOn, style]}
     >
       <Text style={[styles.chipText, active && styles.chipTextOn]}>
         {label}
@@ -80,6 +80,8 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.sandDark,
     backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   chipOn: {
     backgroundColor: colors.amber,
