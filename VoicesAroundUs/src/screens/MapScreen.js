@@ -9,7 +9,7 @@ import { colors, fonts, TAG_HEX, TAGS } from '../theme';
 import { FilterChip } from '../components/TagPill';
 import { useStories } from '../hooks/useStories';
 
-MapboxGL.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN || 'pk.eyJ1Ijoidm9pY2VzLXN1cGFiYXNlIiwiYSI6ImNtbTg2b3Y0bDBhbjAyeHB5ajk1N2Voc3UifQ.1pPcF3PcSw3CRrZheft0iw');
+MapboxGL.setAccessToken('pk.eyJ1Ijoidm9pY2VzLXN1cGFiYXNlIiwiYSI6ImNtbTg2b3Y0bDBhbjAyeHB5ajk1N2Voc3UifQ.1pPcF3PcSw3CRrZheft0iw');
 
 const UCLA_CENTER = [-118.443, 34.072];
 
