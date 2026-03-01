@@ -41,12 +41,13 @@ export default function ExploreScreen({ navigation }) {
         contentContainerStyle={styles.chipRow}
         style={styles.chipScroll}
       >
-        {filters.map((f) => (
+        {filters.map((f, i) => (
           <FilterChip
             key={f}
             label={f}
             active={activeFilter === f}
             onPress={() => handleFilter(f)}
+            style={{ marginRight: i === filters.length - 1 ? 0 : 8 }}
           />
         ))}
       </ScrollView>
@@ -106,11 +107,14 @@ const styles = StyleSheet.create({
   chipScroll: {
     flexGrow: 0,
     marginBottom: 4,
+    paddingVertical: 8,
+    minHeight: 64,
   },
   chipRow: {
     paddingHorizontal: 20,
-    gap: 8,
     paddingBottom: 12,
+    alignItems: 'center',
+    flexDirection: 'row',
   },
   list: {
     paddingHorizontal: 20,
