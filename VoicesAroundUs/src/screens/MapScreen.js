@@ -3,42 +3,47 @@ import {
   View, Text, StyleSheet, TouchableOpacity,
   ScrollView, ActivityIndicator, Platform,
 } from 'react-native';
-import MapboxGL from '@rnmapbox/maps';
+import MapView, { Marker, Callout } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { colors, fonts, TAG_HEX, TAGS } from '../theme';
 import { FilterChip } from '../components/TagPill';
 import { useStories } from '../hooks/useStories';
 
-MapboxGL.setAccessToken('pk.eyJ1Ijoidm9pY2VzLXN1cGFiYXNlIiwiYSI6ImNtbTg2b3Y0bDBhbjAyeHB5ajk1N2Voc3UifQ.1pPcF3PcSw3CRrZheft0iw');
-
-const UCLA_CENTER = [-118.443, 34.072];
+const UCLA_CENTER = { latitude: 34.072, longitude: -118.443 };
 
 const OFFSET_COORDS = [
-  [0.0008, -0.0002], [-0.0012, 0.0005], [0.0005, 0.0008],
-  [-0.0002, -0.0005], [-0.0015, 0.0002], [0.001, -0.0002],
-  [-0.0008, -0.0008], [0.0012, 0.0003],
+  { lng: 0.0008, lat: -0.0002 }, { lng: -0.0012, lat: 0.0005 },
+  { lng: 0.0005, lat: 0.0008 }, { lng: -0.0002, lat: -0.0005 },
+  { lng: -0.0015, lat: 0.0002 }, { lng: 0.001, lat: -0.0002 },
+  { lng: -0.0008, lat: -0.0008 }, { lng: 0.0012, lat: 0.0003 },
 ];
 
 function getCoords(story, index) {
   if (story.lat != null && story.lng != null) {
-    return [story.lng, story.lat];
+    return { latitude: story.lat, longitude: story.lng };
   }
   const off = OFFSET_COORDS[index % OFFSET_COORDS.length];
-  return [UCLA_CENTER[0] + off[0], UCLA_CENTER[1] + off[1]];
+  return {
+    latitude: UCLA_CENTER.latitude + off.lat,
+    longitude: UCLA_CENTER.longitude + off.lng,
+  };
 }
 
 export default function MapScreen({ navigation }) {
   const { stories, loading, fetchStories } = useStories();
   const [activeFilter, setActiveFilter] = useState('All');
   const [userLocation, setUserLocation] = useState(null);
-  const cameraRef = useRef(null);
+  const mapRef = useRef(null);
 
   useEffect(() => {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status === 'granted') {
         const loc = await Location.getCurrentPositionAsync({});
-        setUserLocation([loc.coords.longitude, loc.coords.latitude]);
+        setUserLocation({
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        });
       }
     })();
   }, []);
@@ -52,44 +57,38 @@ export default function MapScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <MapboxGL.MapView
+      <MapView
+        ref={mapRef}
         style={styles.map}
-        styleURL="mapbox://styles/mapbox/streets-v12"
-        logoEnabled={false}
-        attributionEnabled={false}
+        initialRegion={{
+          ...UCLA_CENTER,
+          latitudeDelta: 0.008,
+          longitudeDelta: 0.008,
+        }}
+        showsUserLocation
+        showsMyLocationButton={false}
       >
-        <MapboxGL.Camera
-          ref={cameraRef}
-          zoomLevel={15.5}
-          centerCoordinate={userLocation || UCLA_CENTER}
-          animationMode="flyTo"
-          animationDuration={1000}
-        />
-
-        {userLocation && (
-          <MapboxGL.PointAnnotation id="user-location" coordinate={userLocation}>
-            <View style={styles.userDot}>
-              <View style={styles.userDotInner} />
-            </View>
-          </MapboxGL.PointAnnotation>
-        )}
-
         {stories.map((story, i) => {
           const coords = getCoords(story, i);
           const pinColor = TAG_HEX[story.tags?.[0]] || '#722F37';
           return (
-            <MapboxGL.PointAnnotation
+            <Marker
               key={story.id}
-              id={story.id}
               coordinate={coords}
-              onSelected={() => navigation.navigate('StoryView', { storyId: story.id })}
+              onPress={() => navigation.navigate('StoryView', { storyId: story.id })}
             >
               <View style={[styles.pin, { backgroundColor: pinColor }]} />
-              <MapboxGL.Callout title={story.title} />
-            </MapboxGL.PointAnnotation>
+              <Callout tooltip>
+                <View style={styles.callout}>
+                  <Text style={styles.calloutText} numberOfLines={2}>
+                    "{story.title}"
+                  </Text>
+                </View>
+              </Callout>
+            </Marker>
           );
         })}
-      </MapboxGL.MapView>
+      </MapView>
 
       <View style={styles.topOverlay}>
         <View style={styles.searchBar}>
@@ -219,21 +218,22 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 4,
   },
-  userDot: {
-    width: 24,
-    height: 24,
+  callout: {
+    backgroundColor: colors.white,
     borderRadius: 12,
-    backgroundColor: 'rgba(66,133,244,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: 10,
+    maxWidth: 160,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 4,
   },
-  userDotInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#4285F4',
-    borderWidth: 2,
-    borderColor: colors.white,
+  calloutText: {
+    fontFamily: fonts.serifItalic,
+    fontSize: 13,
+    color: colors.ink,
+    lineHeight: 18,
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
