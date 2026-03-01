@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
   },
   input: {
     width: '100%',
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     borderWidth: 1.5,
     borderColor: colors.sandDark,
     borderRadius: 14,

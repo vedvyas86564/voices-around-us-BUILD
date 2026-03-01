@@ -26,7 +26,9 @@ export default function StoryCard({ story, onPress }) {
       </View>
       <Text style={styles.title}>"{story.title}"</Text>
       <Text style={styles.preview} numberOfLines={2}>
-        {story.body}
+        {story.audio_url
+          ? (story.body?.trim() ? `🎙 ${story.body}` : '🎙 Audio story')
+          : story.body}
       </Text>
       <View style={styles.footer}>
         <View style={styles.tags}>
@@ -42,7 +44,7 @@ export default function StoryCard({ story, onPress }) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 17,
     borderWidth: 1,

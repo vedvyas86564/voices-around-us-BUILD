@@ -4,6 +4,7 @@ import {
   FlatList, ActivityIndicator,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, TAGS } from '../theme';
 import { FilterChip } from '../components/TagPill';
 import StoryCard from '../components/StoryCard';
@@ -11,6 +12,7 @@ import { useStories } from '../hooks/useStories';
 
 export default function ExploreScreen({ navigation }) {
   const { stories, loading, fetchStories } = useStories();
+  const insets = useSafeAreaInsets();
   const [activeFilter, setActiveFilter] = useState('All');
 
   useFocusEffect(
@@ -28,7 +30,7 @@ export default function ExploreScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <Text style={styles.title}>Explore</Text>
         <Text style={styles.subtitle}>Voices from around you</Text>
       </View>
@@ -87,7 +89,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.parchment,
   },
   header: {
-    paddingTop: 14,
     paddingHorizontal: 24,
     paddingBottom: 12,
   },

@@ -19,8 +19,10 @@ const OFFSET_COORDS = [
 ];
 
 function getCoords(story, index) {
-  if (story.lat != null && story.lng != null) {
-    return { latitude: story.lat, longitude: story.lng };
+  const lat = Number(story.lat);
+  const lng = Number(story.lng);
+  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    return { latitude: lat, longitude: lng };
   }
   const off = OFFSET_COORDS[index % OFFSET_COORDS.length];
   return {
@@ -149,7 +151,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   searchBar: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.sandDark,
@@ -219,7 +221,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   callout: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 10,
     maxWidth: 160,

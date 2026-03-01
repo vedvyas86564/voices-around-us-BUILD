@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
     borderRadius: 100,
     borderWidth: 1.5,
     borderColor: colors.sandDark,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
   },
   chipOn: {
     backgroundColor: colors.amber,
